@@ -34,13 +34,15 @@ class ComparisonTab:
         y_start = self.height - 185 + 30 + 32  # title + headers + separator
         
         algo_order = ['Brute Force', 'Nearest Neighbor', '2-Opt']
-        for i, name in enumerate(algo_order):
+        row_index = 0
+        for name in algo_order:
             if name in self.results:
                 # Create clickable rect for each algorithm row
-                rect = pygame.Rect(x_start - 5, y_start + i * 32 - 2, 420, 28)
+                rect = pygame.Rect(x_start - 5, y_start + row_index * 32 - 2, 420, 28)
                 if rect.collidepoint(pos):
                     self.selected_display = name
                     return
+                row_index += 1
     
     def run_all_algorithms(self):
         """Run all algorithms and store results."""

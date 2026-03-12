@@ -25,22 +25,22 @@ class VisualizationTab:
         
         # UI elements
         self.buttons = {
-            'start': pygame.Rect(20, height - 150, 100, 35),
-            'pause': pygame.Rect(130, height - 150, 100, 35),
-            'step': pygame.Rect(240, height - 150, 100, 35),
-            'reset': pygame.Rect(350, height - 150, 100, 35),
+            'start': pygame.Rect(20, height - 180, 100, 35),
+            'pause': pygame.Rect(130, height - 180, 100, 35),
+            'step': pygame.Rect(240, height - 180, 100, 35),
+            'reset': pygame.Rect(350, height - 180, 100, 35),
         }
         
         self.algo_buttons = {
-            'Brute Force': pygame.Rect(20, height - 110, 140, 30),
-            'Nearest Neighbor': pygame.Rect(170, height - 110, 180, 30),
-            '2-Opt': pygame.Rect(360, height - 110, 90, 30),
+            'Brute Force': pygame.Rect(100, height - 135, 140, 30),
+            'Nearest Neighbor': pygame.Rect(250, height - 135, 180, 30),
+            '2-Opt': pygame.Rect(440, height - 135, 90, 30),
         }
         
         # Speed control
         self.speed_buttons = {
-            'slow': pygame.Rect(470, height - 150, 60, 30),
-            'fast': pygame.Rect(540, height - 150, 60, 30),
+            'slow': pygame.Rect(80, height - 95, 60, 30),
+            'fast': pygame.Rect(150, height - 95, 60, 30),
         }
         
     def handle_click(self, pos):
@@ -152,7 +152,7 @@ class VisualizationTab:
         # Draw control panel
         pygame.draw.rect(screen, (30, 30, 30), (0, self.height - 200, self.width, 200))
         
-        # Draw buttons (reorganized for better spacing)
+        # Row 1: Control buttons
         font = pygame.font.Font(None, 26)
         for name, rect in self.buttons.items():
             color = (70, 120, 70) if name == 'start' and self.running else (70, 70, 70)
@@ -162,12 +162,11 @@ class VisualizationTab:
             text_rect = text.get_rect(center=rect.center)
             screen.blit(text, text_rect)
         
-        # Draw algorithm selection label
-        font_label = pygame.font.Font(None, 22)
+        # Row 2: Algorithm selection
+        font_label = pygame.font.Font(None, 20)
         label = font_label.render("Algorithm:", True, (180, 180, 180))
-        screen.blit(label, (20, self.height - 135))
+        screen.blit(label, (20, self.height - 138))
         
-        # Draw algorithm selection
         font_small = pygame.font.Font(None, 24)
         for name, rect in self.algo_buttons.items():
             color = (70, 100, 150) if name == self.selected_algo else (60, 60, 60)
@@ -177,11 +176,10 @@ class VisualizationTab:
             text_rect = text.get_rect(center=rect.center)
             screen.blit(text, text_rect)
         
-        # Draw speed control label
+        # Row 3: Speed control
         label = font_label.render("Speed:", True, (180, 180, 180))
-        screen.blit(label, (470, self.height - 175))
+        screen.blit(label, (20, self.height - 98))
         
-        # Draw speed control
         for name, rect in self.speed_buttons.items():
             pygame.draw.rect(screen, (60, 60, 60), rect)
             pygame.draw.rect(screen, (100, 100, 100), rect, 2)
@@ -191,7 +189,7 @@ class VisualizationTab:
         
         # Draw speed indicator
         speed_text = font_small.render(f"{self.speed}x", True, (200, 200, 200))
-        screen.blit(speed_text, (610, self.height - 170))
+        screen.blit(speed_text, (160, self.height - 93))
         
         # Draw metrics
         self.draw_metrics(screen)
@@ -328,7 +326,7 @@ class VisualizationTab:
         if self.completed:
             metrics.append("Status: ✓ Completed")
         elif self.running:
-            metrics.append("Status: Running...")
+            metrics.append(f"Status: Running {self.speed}x")
         else:
             metrics.append("Status: Paused")
         
