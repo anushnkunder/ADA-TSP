@@ -1,8 +1,9 @@
 from models.route import Route
-from utils import euclidean_distance
+from utils import euclidean_distance_squared
+import math
 
 class NearestNeighborTSP:
-    """Nearest Neighbor greedy TSP solver."""
+    """Nearest Neighbor greedy TSP solver (optimized)."""
     
     def __init__(self, cities):
         self.cities = cities
@@ -10,6 +11,7 @@ class NearestNeighborTSP:
         self.current_city = None
         self.visited = set()
         self.path = []
+        self.unvisited = None
         
     def solve_generator(self):
         """Generator that yields state after each city selection."""
@@ -20,24 +22,25 @@ class NearestNeighborTSP:
         self.current_city = self.cities[0]
         self.visited.add(self.current_city)
         self.path.append(self.current_city)
+        self.unvisited = set(self.cities) - self.visited
         yield
         
-        # Visit remaining cities
-        while len(self.visited) < len(self.cities):
+        # Visit remaining cities (optimized with unvisited set)
+        while self.unvisited:
             nearest = None
-            min_distance = float('inf')
+            min_distance_sq = float('inf')
             
-            # Find nearest unvisited city
-            for city in self.cities:
-                if city not in self.visited:
-                    dist = euclidean_distance(self.current_city, city)
-                    if dist < min_distance:
-                        min_distance = dist
-                        nearest = city
+            # Find nearest unvisited city using squared distance
+            for city in self.unvisited:
+                dist_sq = euclidean_distance_squared(self.current_city, city)
+                if dist_sq < min_distance_sq:
+                    min_distance_sq = dist_sq
+                    nearest = city
             
             # Move to nearest city
             self.current_city = nearest
             self.visited.add(nearest)
+            self.unvisited.remove(nearest)
             self.path.append(nearest)
             yield
         

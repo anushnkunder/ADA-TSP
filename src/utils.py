@@ -3,8 +3,16 @@ import random
 from models.city import City
 
 def euclidean_distance(city1, city2):
-    """Calculate Euclidean distance between two cities."""
-    return math.sqrt((city2.x - city1.x)**2 + (city2.y - city1.y)**2)
+    """Calculate Euclidean distance between two cities (optimized)."""
+    dx = city2.x - city1.x
+    dy = city2.y - city1.y
+    return math.sqrt(dx * dx + dy * dy)
+
+def euclidean_distance_squared(city1, city2):
+    """Calculate squared distance (faster, use for comparisons)."""
+    dx = city2.x - city1.x
+    dy = city2.y - city1.y
+    return dx * dx + dy * dy
 
 def generate_random_cities(count, width, height, margin=50):
     """Generate random cities within bounds."""

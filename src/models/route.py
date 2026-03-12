@@ -16,15 +16,21 @@ class Route:
         return self._distance
     
     def calculate_distance(self):
-        """Calculate Euclidean distance for the route."""
+        """Calculate Euclidean distance for the route (optimized)."""
         if len(self.cities) < 2:
             return 0
         
         total = 0
-        for i in range(len(self.cities)):
-            city1 = self.cities[i]
-            city2 = self.cities[(i + 1) % len(self.cities)]
-            total += math.sqrt((city2.x - city1.x)**2 + (city2.y - city1.y)**2)
+        cities = self.cities
+        n = len(cities)
+        
+        # Optimized loop - avoid repeated list access
+        for i in range(n):
+            city1 = cities[i]
+            city2 = cities[(i + 1) % n]
+            dx = city2.x - city1.x
+            dy = city2.y - city1.y
+            total += math.sqrt(dx * dx + dy * dy)
         return total
     
     def __repr__(self):

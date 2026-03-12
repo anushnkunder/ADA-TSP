@@ -11,8 +11,8 @@ class TSPSimulator:
     
     def __init__(self):
         pygame.init()
-        self.width = 1000
-        self.height = 700
+        self.width = 1400
+        self.height = 900
         self.screen = pygame.display.set_mode((self.width, self.height))
         pygame.display.set_caption("TSP Simulator - ADA Project")
         self.clock = pygame.time.Clock()
@@ -37,6 +37,11 @@ class TSPSimulator:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
+            
+            if event.type == pygame.KEYDOWN:
+                # Pass keyboard events to playground tab
+                if self.current_tab == 0:
+                    self.playground.handle_keypress(event)
             
             if event.type == pygame.MOUSEBUTTONDOWN:
                 pos = event.pos
