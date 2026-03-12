@@ -14,6 +14,13 @@ class PlaygroundTab:
         self.editing_count = False  # Whether user is typing
         self.count_input = "10"  # String for keyboard input
         
+        # Zoom and pan
+        self.zoom = 1.0
+        self.pan_x = 0
+        self.pan_y = 0
+        self.panning = False
+        self.pan_start = (0, 0)
+        
         # UI elements
         self.buttons = {
             'random': pygame.Rect(20, height - 150, 150, 35),
@@ -59,8 +66,37 @@ class PlaygroundTab:
         # Add city on canvas click
         elif pos[1] < self.height - 200:
             if len(self.cities) < 50:  # Limit max cities
-                self.cities.append(City(pos[0], pos[1], self.next_id))
+                # Convert screen coordinates to world coordinates
+                world_x = (pos[0] - self.pan_x) / self.zoom
+                world_y = (pos[1] - self.pan_y) / self.zoom
+                self.cities.append(City(world_x, world_y, self.next_id))
                 self.next_id += 1
+    
+    def handle_mouse_button(self, event):
+        """Handle mouse button events for panning (trackpad friendly)."""
+        # Support both middle mouse (button 2) and right mouse (button 3) for panning
+        if event.button in [2, 3]:  # Middle or right mouse button
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                self.panning = True
+                self.pan_start = event.pos
+            elif event.type == pygame.MOUSEBUTTONUP:
+                self.panning = False
+    
+    def handle_mouse_motion(self, event):
+        """Handle mouse motion for panning."""
+        if self.panning:
+            dx = event.pos[0] - self.pan_start[0]
+            dy = event.pos[1] - self.pan_start[1]
+            self.pan_x += dx
+            self.pan_y += dy
+            self.pan_start = event.pos
+    
+    def handle_mouse_wheel(self, event):
+        """Handle mouse wheel for zooming."""
+        if event.y > 0:  # Scroll up - zoom in
+            self.zoom = min(3.0, self.zoom * 1.1)
+        elif event.y < 0:  # Scroll down - zoom out
+            self.zoom = max(0.5, self.zoom / 1.1)
     
     def handle_keypress(self, event):
         """Handle keyboard input for city count."""
@@ -93,31 +129,86 @@ class PlaygroundTab:
                 self.count_input += event.unicode
     
     def draw(self, screen):
-        """Draw the playground tab."""
-        # Draw canvas area
+        """Draw the playground tab with visual effects and zoom."""
+        # Draw canvas area with gradient
         pygame.draw.rect(screen, (40, 40, 40), (0, 0, self.width, self.height - 200))
         
-        # Draw cities
-        for city in self.cities:
-            pygame.draw.circle(screen, (255, 255, 255), (city.x, city.y), 6)
-            font = pygame.font.Font(None, 20)
-            text = font.render(str(city.id), True, (200, 200, 200))
-            screen.blit(text, (city.x + 10, city.y - 10))
+        # Draw grid pattern for better depth (with zoom)
+        grid_color = (45, 45, 45)
+        grid_spacing = int(50 * self.zoom)
         
-        # Draw control panel
-        pygame.draw.rect(screen, (30, 30, 30), (0, self.height - 200, self.width, 200))
+        # Calculate grid offset based on pan
+        offset_x = int(self.pan_x % grid_spacing)
+        offset_y = int(self.pan_y % grid_spacing)
+        
+        for x in range(offset_x, self.width, grid_spacing):
+            pygame.draw.line(screen, grid_color, (x, 0), (x, self.height - 200), 1)
+        for y in range(offset_y, self.height - 200, grid_spacing):
+            pygame.draw.line(screen, grid_color, (0, y), (self.width, y), 1)
+        
+        # Draw cities with glow effect (with zoom and pan)
+        for city in self.cities:
+            # Convert world coordinates to screen coordinates
+            screen_x = int(city.x * self.zoom + self.pan_x)
+            screen_y = int(city.y * self.zoom + self.pan_y)
+            
+            # Skip if outside visible area
+            if screen_x < -20 or screen_x > self.width + 20:
+                continue
+            if screen_y < -20 or screen_y > self.height - 180:
+                continue
+            
+            # Scale radius with zoom
+            base_radius = int(6 * self.zoom)
+            
+            # Glow effect (simplified)
+            pygame.draw.circle(screen, (80, 80, 80), (screen_x, screen_y), base_radius + 3)
+            pygame.draw.circle(screen, (120, 120, 120), (screen_x, screen_y), base_radius + 2)
+            
+            # Main city circle with gradient
+            pygame.draw.circle(screen, (200, 200, 200), (screen_x, screen_y), base_radius + 1)
+            pygame.draw.circle(screen, (255, 255, 255), (screen_x, screen_y), base_radius)
+            pygame.draw.circle(screen, (100, 150, 255), (screen_x, screen_y), max(2, base_radius - 2))
+            
+            # City ID with shadow (only if zoomed in enough)
+            if self.zoom > 0.7:
+                font_size = max(16, int(20 * self.zoom))
+                font = pygame.font.Font(None, font_size)
+                text = font.render(str(city.id), True, (0, 0, 0))
+                screen.blit(text, (screen_x + 11, screen_y - 9))
+                text = font.render(str(city.id), True, (255, 255, 255))
+                screen.blit(text, (screen_x + 10, screen_y - 10))
+        
+        # Draw control panel with gradient
+        panel_rect = pygame.Rect(0, self.height - 200, self.width, 200)
+        pygame.draw.rect(screen, (30, 30, 30), panel_rect)
+        # Top border highlight
+        pygame.draw.line(screen, (60, 60, 60), (0, self.height - 200), (self.width, self.height - 200), 2)
         
         # Section 1: Preset Generation
         font_label = pygame.font.Font(None, 22)
         label = font_label.render("Generate Presets:", True, (180, 180, 180))
         screen.blit(label, (20, self.height - 190))
         
-        # Draw preset buttons
+        # Draw preset buttons with hover and shadow
         font = pygame.font.Font(None, 28)
+        mouse_pos = pygame.mouse.get_pos()
+        adjusted_mouse = (mouse_pos[0], mouse_pos[1] - 40)  # Adjust for tab offset
+        
         for name in ['random', 'circle', 'clustered']:
             rect = self.buttons[name]
-            pygame.draw.rect(screen, (70, 70, 70), rect)
-            pygame.draw.rect(screen, (100, 100, 100), rect, 2)
+            is_hover = rect.collidepoint(adjusted_mouse)
+            
+            # Shadow
+            shadow_rect = rect.copy()
+            shadow_rect.y += 2
+            pygame.draw.rect(screen, (10, 10, 10), shadow_rect)
+            
+            # Button with hover effect
+            color = (90, 90, 90) if is_hover else (70, 70, 70)
+            pygame.draw.rect(screen, color, rect, border_radius=5)
+            pygame.draw.rect(screen, (100, 100, 100), rect, 2, border_radius=5)
+            
             text = font.render(name.capitalize(), True, (255, 255, 255))
             text_rect = text.get_rect(center=rect.center)
             screen.blit(text, text_rect)
@@ -159,11 +250,20 @@ class PlaygroundTab:
                            (cursor_x, cursor_y - 10), 
                            (cursor_x, cursor_y + 10), 2)
         
-        # Section 3: Clear button
-        pygame.draw.rect(screen, (120, 50, 50), self.buttons['clear'])
-        pygame.draw.rect(screen, (100, 100, 100), self.buttons['clear'], 2)
+        # Section 3: Clear button with red theme
+        clear_rect = self.buttons['clear']
+        is_hover_clear = clear_rect.collidepoint(adjusted_mouse)
+        
+        # Shadow
+        shadow_rect = clear_rect.copy()
+        shadow_rect.y += 2
+        pygame.draw.rect(screen, (10, 10, 10), shadow_rect)
+        
+        color = (150, 60, 60) if is_hover_clear else (120, 50, 50)
+        pygame.draw.rect(screen, color, clear_rect, border_radius=5)
+        pygame.draw.rect(screen, (180, 80, 80), clear_rect, 2, border_radius=5)
         text = font.render("Clear", True, (255, 255, 255))
-        text_rect = text.get_rect(center=self.buttons['clear'].center)
+        text_rect = text.get_rect(center=clear_rect.center)
         screen.blit(text, text_rect)
         
         # Section 4: Instructions panel
@@ -182,8 +282,9 @@ class PlaygroundTab:
             "• Click on canvas to add cities",
             f"• Current cities: {len(self.cities)}/50",
             "• Click number to type, or use +/-",
-            "• Generate random/circle/clustered",
-            "• Clear to remove all cities",
+            "• Scroll: Zoom in/out",
+            "• Right-click drag: Pan view",
+            f"• Zoom: {self.zoom:.1f}x",
         ]
         for i, line in enumerate(instructions):
             color = (200, 200, 200) if i == 0 else (180, 180, 180)

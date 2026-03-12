@@ -43,6 +43,35 @@ class TSPSimulator:
                 if self.current_tab == 0:
                     self.playground.handle_keypress(event)
             
+            if event.type == pygame.MOUSEWHEEL:
+                # Pass mouse wheel to tabs for zooming
+                if self.current_tab == 0:
+                    self.playground.handle_mouse_wheel(event)
+                elif self.current_tab == 1 and self.visualization:
+                    self.visualization.handle_mouse_wheel(event)
+                elif self.current_tab == 2 and self.comparison:
+                    self.comparison.handle_mouse_wheel(event)
+            
+            if event.type == pygame.MOUSEMOTION:
+                # Pass mouse motion for panning
+                if self.current_tab == 0:
+                    self.playground.handle_mouse_motion(event)
+                elif self.current_tab == 1 and self.visualization:
+                    self.visualization.handle_mouse_motion(event)
+                elif self.current_tab == 2 and self.comparison:
+                    self.comparison.handle_mouse_motion(event)
+            
+            if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.MOUSEBUTTONUP:
+                # Handle middle or right mouse button for panning (trackpad friendly)
+                if event.button in [2, 3]:  # Middle or right click
+                    if self.current_tab == 0:
+                        self.playground.handle_mouse_button(event)
+                    elif self.current_tab == 1 and self.visualization:
+                        self.visualization.handle_mouse_button(event)
+                    elif self.current_tab == 2 and self.comparison:
+                        self.comparison.handle_mouse_button(event)
+                    continue
+            
             if event.type == pygame.MOUSEBUTTONDOWN:
                 pos = event.pos
                 
@@ -93,17 +122,50 @@ class TSPSimulator:
             self.visualization.update()
     
     def draw(self):
-        """Draw the current tab."""
+        """Draw the current tab with animations."""
         self.screen.fill((20, 20, 20))
         
-        # Draw tab buttons
+        # Draw animated tab buttons with hover effect
         font = pygame.font.Font(None, 28)
+        mouse_pos = pygame.mouse.get_pos()
+        
         for i, (name, rect) in enumerate(zip(self.tab_names, self.tab_buttons)):
-            color = (70, 100, 150) if i == self.current_tab else (50, 50, 50)
+            # Check if mouse is hovering
+            is_hover = rect.collidepoint(mouse_pos)
+            is_active = i == self.current_tab
+            
+            # Color with gradient effect
+            if is_active:
+                color = (70, 100, 150)
+                border_color = (100, 150, 200)
+            elif is_hover:
+                color = (60, 60, 80)
+                border_color = (100, 100, 120)
+            else:
+                color = (50, 50, 50)
+                border_color = (80, 80, 80)
+            
+            # Draw shadow
+            shadow_rect = rect.copy()
+            shadow_rect.y += 2
+            pygame.draw.rect(self.screen, (10, 10, 10), shadow_rect)
+            
+            # Draw button
             pygame.draw.rect(self.screen, color, rect)
-            pygame.draw.rect(self.screen, (100, 100, 100), rect, 2)
+            pygame.draw.rect(self.screen, border_color, rect, 2)
+            
+            # Draw text with shadow
             text = font.render(name, True, (255, 255, 255))
             text_rect = text.get_rect(center=rect.center)
+            
+            # Text shadow
+            shadow_text = font.render(name, True, (0, 0, 0))
+            shadow_rect = text_rect.copy()
+            shadow_rect.x += 1
+            shadow_rect.y += 1
+            self.screen.blit(shadow_text, shadow_rect)
+            
+            # Main text
             self.screen.blit(text, text_rect)
         
         # Create surface for tab content

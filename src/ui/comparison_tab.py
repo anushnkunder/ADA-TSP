@@ -14,6 +14,13 @@ class ComparisonTab:
         self.results = {}
         self.selected_display = None
         
+        # Zoom and pan
+        self.zoom = 1.0
+        self.pan_x = 0
+        self.pan_y = 0
+        self.panning = False
+        self.pan_start = (0, 0)
+        
         # UI elements
         self.buttons = {
             'run_all': pygame.Rect(20, height - 150, 150, 40),
@@ -43,6 +50,37 @@ class ComparisonTab:
                     self.selected_display = name
                     return
                 row_index += 1
+    
+    
+    def handle_mouse_button(self, event):
+        """Handle mouse button events for panning (trackpad friendly)."""
+        # Support both middle mouse (button 2) and right mouse (button 3) for panning
+        if event.button in [2, 3]:  # Middle or right mouse button
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                self.panning = True
+                self.pan_start = event.pos
+            elif event.type == pygame.MOUSEBUTTONUP:
+                self.panning = False
+    
+    def handle_mouse_motion(self, event):
+        """Handle mouse motion for panning."""
+        if self.panning:
+            dx = event.pos[0] - self.pan_start[0]
+            dy = event.pos[1] - self.pan_start[1]
+            self.pan_x += dx
+            self.pan_y += dy
+            self.pan_start = event.pos
+    
+    def handle_mouse_wheel(self, event):
+        """Handle mouse wheel for zooming."""
+        if event.y > 0:  # Scroll up - zoom in
+            self.zoom = min(3.0, self.zoom * 1.1)
+        elif event.y < 0:  # Scroll down - zoom out
+            self.zoom = max(0.5, self.zoom / 1.1)
+    
+    def world_to_screen(self, x, y):
+        """Convert world coordinates to screen coordinates."""
+        return (int(x * self.zoom + self.pan_x), int(y * self.zoom + self.pan_y))
     
     def run_all_algorithms(self):
         """Run all algorithms and store results."""
@@ -88,16 +126,23 @@ class ComparisonTab:
         self.selected_display = 'Nearest Neighbor'
     
     def draw(self, screen):
-        """Draw the comparison tab."""
-        # Draw canvas
+        """Draw the comparison tab with visual effects."""
+        # Draw canvas with gradient
         pygame.draw.rect(screen, (40, 40, 40), (0, 0, self.width, self.height - 200))
         
-        # Draw selected route
+        # Draw grid
+        grid_color = (45, 45, 45)
+        for x in range(0, self.width, 50):
+            pygame.draw.line(screen, grid_color, (x, 0), (x, self.height - 200), 1)
+        for y in range(0, self.height - 200, 50):
+            pygame.draw.line(screen, grid_color, (0, y), (self.width, y), 1)
+        
+        # Draw selected route with glow
         if self.selected_display and self.selected_display in self.results:
             route = self.results[self.selected_display]['route']
             cities = route.cities
             
-            # Draw route lines
+            # Route colors
             colors = {
                 'Brute Force': (0, 255, 0),
                 'Nearest Neighbor': (255, 255, 0),
@@ -105,24 +150,64 @@ class ComparisonTab:
             }
             color = colors.get(self.selected_display, (255, 255, 255))
             
+            # Draw route with glow effect (simplified)
             for i in range(len(cities)):
                 city1 = cities[i]
                 city2 = cities[(i + 1) % len(cities)]
-                pygame.draw.line(screen, color, (city1.x, city1.y), (city2.x, city2.y), 2)
+                
+                x1, y1 = self.world_to_screen(city1.x, city1.y)
+                x2, y2 = self.world_to_screen(city2.x, city2.y)
+                
+                # Glow layers
+                dark_color = tuple(c // 3 for c in color)
+                line_width = max(4, int(6 * self.zoom))
+                pygame.draw.line(screen, dark_color, (x1, y1), (x2, y2), line_width)
+                line_width = max(2, int(3 * self.zoom))
+                pygame.draw.line(screen, color, (x1, y1), (x2, y2), line_width)
         
-        # Draw cities
+        # Draw cities with glow
         for city in self.cities:
-            pygame.draw.circle(screen, (255, 255, 255), (city.x, city.y), 6)
+            screen_x, screen_y = self.world_to_screen(city.x, city.y)
+            
+            # Skip if outside visible area
+            if screen_x < -20 or screen_x > self.width + 20:
+                continue
+            if screen_y < -20 or screen_y > self.height - 180:
+                continue
+            
+            base_radius = max(4, int(6 * self.zoom))
+            
+            # Glow (simplified)
+            pygame.draw.circle(screen, (80, 80, 80), (screen_x, screen_y), base_radius + 3)
+            pygame.draw.circle(screen, (120, 120, 120), (screen_x, screen_y), base_radius + 2)
+            
+            pygame.draw.circle(screen, (200, 200, 200), (screen_x, screen_y), base_radius + 1)
+            pygame.draw.circle(screen, (255, 255, 255), (screen_x, screen_y), base_radius)
         
-        # Draw control panel
+        # Draw control panel with gradient
         pygame.draw.rect(screen, (30, 30, 30), (0, self.height - 200, self.width, 200))
+        pygame.draw.line(screen, (60, 60, 60), (0, self.height - 200), (self.width, self.height - 200), 2)
         
-        # Draw run button
+        # Draw run button with hover and shadow
         font = pygame.font.Font(None, 28)
-        pygame.draw.rect(screen, (70, 120, 70), self.buttons['run_all'])
-        pygame.draw.rect(screen, (100, 100, 100), self.buttons['run_all'], 2)
+        mouse_pos = pygame.mouse.get_pos()
+        adjusted_mouse = (mouse_pos[0], mouse_pos[1] - 40)
+        
+        run_rect = self.buttons['run_all']
+        is_hover = run_rect.collidepoint(adjusted_mouse)
+        
+        # Shadow
+        shadow_rect = run_rect.copy()
+        shadow_rect.y += 2
+        pygame.draw.rect(screen, (10, 10, 10), shadow_rect)
+        
+        # Button
+        color = (90, 150, 90) if is_hover else (70, 120, 70)
+        pygame.draw.rect(screen, color, run_rect, border_radius=5)
+        pygame.draw.rect(screen, (100, 180, 100), run_rect, 2, border_radius=5)
+        
         text = font.render("Run All", True, (255, 255, 255))
-        text_rect = text.get_rect(center=self.buttons['run_all'].center)
+        text_rect = text.get_rect(center=run_rect.center)
         screen.blit(text, text_rect)
         
         # Draw results table

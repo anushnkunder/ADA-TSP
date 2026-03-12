@@ -23,6 +23,13 @@ class VisualizationTab:
         self.completed = False
         self.frame_counter = 0  # For fractional speeds
         
+        # Zoom and pan
+        self.zoom = 1.0
+        self.pan_x = 0
+        self.pan_y = 0
+        self.panning = False
+        self.pan_start = (0, 0)
+        
         # UI elements
         self.buttons = {
             'start': pygame.Rect(20, height - 180, 100, 35),
@@ -43,6 +50,37 @@ class VisualizationTab:
             'fast': pygame.Rect(150, height - 95, 60, 30),
         }
         
+    
+    def handle_mouse_button(self, event):
+        """Handle mouse button events for panning (trackpad friendly)."""
+        # Support both middle mouse (button 2) and right mouse (button 3) for panning
+        if event.button in [2, 3]:  # Middle or right mouse button
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                self.panning = True
+                self.pan_start = event.pos
+            elif event.type == pygame.MOUSEBUTTONUP:
+                self.panning = False
+    
+    def handle_mouse_motion(self, event):
+        """Handle mouse motion for panning."""
+        if self.panning:
+            dx = event.pos[0] - self.pan_start[0]
+            dy = event.pos[1] - self.pan_start[1]
+            self.pan_x += dx
+            self.pan_y += dy
+            self.pan_start = event.pos
+    
+    def handle_mouse_wheel(self, event):
+        """Handle mouse wheel for zooming."""
+        if event.y > 0:  # Scroll up - zoom in
+            self.zoom = min(3.0, self.zoom * 1.1)
+        elif event.y < 0:  # Scroll down - zoom out
+            self.zoom = max(0.5, self.zoom / 1.1)
+    
+    def world_to_screen(self, x, y):
+        """Convert world coordinates to screen coordinates."""
+        return (int(x * self.zoom + self.pan_x), int(y * self.zoom + self.pan_y))
+    
     def handle_click(self, pos):
         """Handle mouse clicks."""
         if self.buttons['start'].collidepoint(pos):
@@ -134,13 +172,36 @@ class VisualizationTab:
                         self.completed = True
     
     def draw(self, screen):
-        """Draw the visualization tab."""
-        # Draw canvas
+        """Draw the visualization tab with animations."""
+        # Draw canvas with gradient background
         pygame.draw.rect(screen, (40, 40, 40), (0, 0, self.width, self.height - 200))
         
-        # Draw cities
+        # Draw subtle grid
+        grid_color = (45, 45, 45)
+        for x in range(0, self.width, 50):
+            pygame.draw.line(screen, grid_color, (x, 0), (x, self.height - 200), 1)
+        for y in range(0, self.height - 200, 50):
+            pygame.draw.line(screen, grid_color, (0, y), (self.width, y), 1)
+        
+        # Draw cities with glow
         for city in self.cities:
-            pygame.draw.circle(screen, (255, 255, 255), (city.x, city.y), 6)
+            screen_x, screen_y = self.world_to_screen(city.x, city.y)
+            
+            # Skip if outside visible area
+            if screen_x < -20 or screen_x > self.width + 20:
+                continue
+            if screen_y < -20 or screen_y > self.height - 180:
+                continue
+            
+            base_radius = max(4, int(6 * self.zoom))
+            
+            # Glow effect (simplified)
+            pygame.draw.circle(screen, (80, 80, 80), (screen_x, screen_y), base_radius + 3)
+            pygame.draw.circle(screen, (120, 120, 120), (screen_x, screen_y), base_radius + 2)
+            
+            # City circle
+            pygame.draw.circle(screen, (200, 200, 200), (screen_x, screen_y), base_radius + 1)
+            pygame.draw.circle(screen, (255, 255, 255), (screen_x, screen_y), base_radius)
         
         # Draw current algorithm state
         if self.algorithm:
@@ -152,6 +213,10 @@ class VisualizationTab:
         # Draw control panel
         pygame.draw.rect(screen, (30, 30, 30), (0, self.height - 200, self.width, 200))
         
+        # Get mouse position for hover effects
+        mouse_pos = pygame.mouse.get_pos()
+        adjusted_mouse = (mouse_pos[0], mouse_pos[1] - 40)  # Adjust for tab offset
+        
         # Row 1: Control buttons
         font = pygame.font.Font(None, 26)
         for name, rect in self.buttons.items():
@@ -162,16 +227,32 @@ class VisualizationTab:
             text_rect = text.get_rect(center=rect.center)
             screen.blit(text, text_rect)
         
-        # Row 2: Algorithm selection
+        # Row 2: Algorithm selection with hover
         font_label = pygame.font.Font(None, 20)
         label = font_label.render("Algorithm:", True, (180, 180, 180))
         screen.blit(label, (20, self.height - 138))
         
         font_small = pygame.font.Font(None, 24)
         for name, rect in self.algo_buttons.items():
-            color = (70, 100, 150) if name == self.selected_algo else (60, 60, 60)
-            pygame.draw.rect(screen, color, rect)
-            pygame.draw.rect(screen, (100, 100, 100), rect, 2)
+            is_hover = rect.collidepoint(adjusted_mouse)
+            is_selected = name == self.selected_algo
+            
+            # Shadow
+            shadow_rect = rect.copy()
+            shadow_rect.y += 2
+            pygame.draw.rect(screen, (10, 10, 10), shadow_rect)
+            
+            # Button color
+            if is_selected:
+                color = (70, 100, 150)
+            elif is_hover:
+                color = (80, 80, 100)
+            else:
+                color = (60, 60, 60)
+            
+            pygame.draw.rect(screen, color, rect, border_radius=5)
+            pygame.draw.rect(screen, (100, 100, 100), rect, 2, border_radius=5)
+            
             text = font_small.render(name, True, (255, 255, 255))
             text_rect = text.get_rect(center=rect.center)
             screen.blit(text, text_rect)
@@ -230,25 +311,32 @@ class VisualizationTab:
             screen.blit(text, (legend_x + 30, y))
     
     def draw_algorithm_state(self, screen):
-        """Draw current state of the algorithm."""
+        """Draw current state of the algorithm with zoom."""
         if isinstance(self.algorithm, NearestNeighborTSP):
             # Draw path so far
             if len(self.algorithm.path) > 1:
                 for i in range(len(self.algorithm.path) - 1):
                     city1 = self.algorithm.path[i]
                     city2 = self.algorithm.path[i + 1]
-                    pygame.draw.line(screen, (255, 255, 0), (city1.x, city1.y), (city2.x, city2.y), 2)
+                    x1, y1 = self.world_to_screen(city1.x, city1.y)
+                    x2, y2 = self.world_to_screen(city2.x, city2.y)
+                    line_width = max(2, int(2 * self.zoom))
+                    pygame.draw.line(screen, (255, 255, 0), (x1, y1), (x2, y2), line_width)
             
             # Draw return line to start if route is complete
             if self.algorithm.route and len(self.algorithm.path) == len(self.cities):
                 start_city = self.algorithm.path[0]
                 end_city = self.algorithm.path[-1]
-                pygame.draw.line(screen, (255, 255, 0), (end_city.x, end_city.y), (start_city.x, start_city.y), 2)
+                x1, y1 = self.world_to_screen(start_city.x, start_city.y)
+                x2, y2 = self.world_to_screen(end_city.x, end_city.y)
+                line_width = max(2, int(2 * self.zoom))
+                pygame.draw.line(screen, (255, 255, 0), (x1, y1), (x2, y2), line_width)
             
             # Highlight current city
             if self.algorithm.current_city:
-                pygame.draw.circle(screen, (0, 255, 0), 
-                                 (self.algorithm.current_city.x, self.algorithm.current_city.y), 10, 3)
+                x, y = self.world_to_screen(self.algorithm.current_city.x, self.algorithm.current_city.y)
+                radius = max(8, int(10 * self.zoom))
+                pygame.draw.circle(screen, (0, 255, 0), (x, y), radius, 3)
         
         elif isinstance(self.algorithm, BruteForceTSP):
             # Draw best route found (green - thicker)
@@ -257,7 +345,10 @@ class VisualizationTab:
                 for i in range(len(cities)):
                     city1 = cities[i]
                     city2 = cities[(i + 1) % len(cities)]
-                    pygame.draw.line(screen, (0, 255, 0), (city1.x, city1.y), (city2.x, city2.y), 3)
+                    x1, y1 = self.world_to_screen(city1.x, city1.y)
+                    x2, y2 = self.world_to_screen(city2.x, city2.y)
+                    line_width = max(2, int(3 * self.zoom))
+                    pygame.draw.line(screen, (0, 255, 0), (x1, y1), (x2, y2), line_width)
             
             # Draw current route being tested (gray - thin, semi-transparent effect)
             # Only draw occasionally to reduce clutter
@@ -266,7 +357,9 @@ class VisualizationTab:
                 for i in range(len(cities)):
                     city1 = cities[i]
                     city2 = cities[(i + 1) % len(cities)]
-                    pygame.draw.line(screen, (80, 80, 80), (city1.x, city1.y), (city2.x, city2.y), 1)
+                    x1, y1 = self.world_to_screen(city1.x, city1.y)
+                    x2, y2 = self.world_to_screen(city2.x, city2.y)
+                    pygame.draw.line(screen, (80, 80, 80), (x1, y1), (x2, y2), 1)
         
         elif isinstance(self.algorithm, TwoOptTSP):
             # Draw current route
@@ -275,14 +368,20 @@ class VisualizationTab:
                 for i in range(len(cities)):
                     city1 = cities[i]
                     city2 = cities[(i + 1) % len(cities)]
-                    pygame.draw.line(screen, (0, 255, 0), (city1.x, city1.y), (city2.x, city2.y), 2)
+                    x1, y1 = self.world_to_screen(city1.x, city1.y)
+                    x2, y2 = self.world_to_screen(city2.x, city2.y)
+                    line_width = max(2, int(2 * self.zoom))
+                    pygame.draw.line(screen, (0, 255, 0), (x1, y1), (x2, y2), line_width)
             
             # Highlight edges being considered
             if self.algorithm.swap_i and self.algorithm.swap_j:
                 i, j = self.algorithm.swap_i, self.algorithm.swap_j
                 cities = self.algorithm.route.cities
-                pygame.draw.circle(screen, (255, 0, 0), (cities[i].x, cities[i].y), 8, 2)
-                pygame.draw.circle(screen, (255, 0, 0), (cities[j].x, cities[j].y), 8, 2)
+                x1, y1 = self.world_to_screen(cities[i].x, cities[i].y)
+                x2, y2 = self.world_to_screen(cities[j].x, cities[j].y)
+                radius = max(6, int(8 * self.zoom))
+                pygame.draw.circle(screen, (255, 0, 0), (x1, y1), radius, 2)
+                pygame.draw.circle(screen, (255, 0, 0), (x2, y2), radius, 2)
     
     def draw_metrics(self, screen):
         """Draw performance metrics (optimized with progress bar)."""
